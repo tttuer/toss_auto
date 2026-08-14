@@ -15,16 +15,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv run --directory backend --extra dev pytest
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - run: pnpm --dir frontend install --no-frozen-lockfile
-      - run: pnpm --dir frontend build
 
   deploy:
     needs: test
@@ -52,7 +42,6 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
           docker buildx build --cache-from type=gha --cache-to type=gha,mode=max --push -t "$DOCKER_USERNAME/toss-auto-api:$GITHUB_SHA" backend
-          docker buildx build --cache-from type=gha --cache-to type=gha,mode=max --push -t "$DOCKER_USERNAME/toss-auto-web:$GITHUB_SHA" frontend
       - name: k3s에 배포하기
         uses: appleboy/ssh-action@v1.2.2
         with:
@@ -85,11 +74,10 @@ jobs:
           script: |
             kubectl apply -f /tmp/toss-auto/k8s/base/namespace.yaml
             kubectl apply -f /tmp/toss-auto/k8s/toss-auto-secrets.yaml
+            kubectl -n toss-auto delete deployment,service toss-auto-web --ignore-not-found
             kubectl -n toss-auto create secret docker-registry toss-auto-registry --docker-server=https://index.docker.io/v1/ --docker-username=$DOCKER_USERNAME --docker-password=$DOCKER_PASSWORD --dry-run=client -o yaml > /tmp/toss-auto/registry-secret.yaml
             kubectl apply -f /tmp/toss-auto/registry-secret.yaml
             kubectl kustomize /tmp/toss-auto/k8s/overlays/prod > /tmp/toss-auto/rendered.yaml
             sed -i "s|image: toss-auto-api:latest|image: $DOCKER_USERNAME/toss-auto-api:$IMAGE_TAG|" /tmp/toss-auto/rendered.yaml
-            sed -i "s|image: toss-auto-web:latest|image: $DOCKER_USERNAME/toss-auto-web:$IMAGE_TAG|" /tmp/toss-auto/rendered.yaml
             kubectl apply -f /tmp/toss-auto/rendered.yaml
             kubectl -n toss-auto rollout status deployment/toss-auto-api --timeout=180s
-            kubectl -n toss-auto rollout status deployment/toss-auto-web --timeout=180s
