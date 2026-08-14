@@ -16,9 +16,13 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv run --directory backend --extra dev pytest
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
+        with:
+          version: 10
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm --dir frontend install --no-frozen-lockfile
       - run: pnpm --dir frontend build
 
@@ -43,7 +47,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: 이미지 만들기와 올리기
-        env: { DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }} }
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
           docker build -t "$DOCKER_USERNAME/toss-auto-api:$GITHUB_SHA" backend
           docker build -t "$DOCKER_USERNAME/toss-auto-web:$GITHUB_SHA" frontend
