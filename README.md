@@ -38,3 +38,5 @@ LIVE_TRADING=true
 `DATABASE_URL`은 배포 과정에서 `POSTGRES_USER`와 `POSTGRES_PASSWORD`로 자동 생성합니다.
 
 계좌가 하나라면 `TOSS_ACCOUNT_SEQ`를 설정할 필요가 없습니다. 주문을 시작하기 전 계좌 목록을 조회하고, 반환된 유일한 계좌의 `accountSeq`를 그 실행에서 자동으로 사용합니다. 계좌가 둘 이상일 때만 오주문 방지를 위해 `TOSS_ACCOUNT_SEQ`를 직접 설정해야 합니다.
+
+도메인을 정한 뒤에만 `k8s/overlays/prod/kustomization.yaml`에 `ingress.yaml`을 다시 추가하고, 호스트·TLS 값을 채우세요.

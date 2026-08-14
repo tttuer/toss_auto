@@ -20,6 +20,8 @@ spec:
     metadata:
       labels: { app: toss-auto-api }
     spec:
+      imagePullSecrets:
+        - name: toss-auto-registry
       containers:
         - name: api
           image: toss-auto-api:latest
