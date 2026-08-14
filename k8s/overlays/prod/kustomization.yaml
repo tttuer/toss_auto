@@ -1,0 +1,4 @@
+namespace: toss-auto
+resources:
+  - ../../base
+  - ingress.yaml

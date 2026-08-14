@@ -1,0 +1,86 @@
+name: 테스트와 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --directory backend --extra dev pytest
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm --dir frontend install --no-frozen-lockfile
+      - run: pnpm --dir frontend build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kubernetes Secret 만들기
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          TOSS_ACCOUNT_SEQ: ${{ secrets.TOSS_ACCOUNT_SEQ }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          AUTO_RUN_ENABLED: ${{ secrets.AUTO_RUN_ENABLED }}
+          LIVE_TRADING: ${{ secrets.LIVE_TRADING }}
+        run: python3 scripts/create_kubernetes_secret.py k8s/toss-auto-secrets.yaml
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: 이미지 만들기와 올리기
+        env: { DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }} }
+        run: |
+          docker build -t "$DOCKER_USERNAME/toss-auto-api:$GITHUB_SHA" backend
+          docker build -t "$DOCKER_USERNAME/toss-auto-web:$GITHUB_SHA" frontend
+          docker push "$DOCKER_USERNAME/toss-auto-api:$GITHUB_SHA"
+          docker push "$DOCKER_USERNAME/toss-auto-web:$GITHUB_SHA"
+      - name: k3s에 배포하기
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: mkdir -p /tmp/toss-auto
+      - name: 배포 파일 보내기
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: k8s
+          target: /tmp/toss-auto
+      - name: 새 버전 적용하기
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DOCKER_USERNAME,GITHUB_SHA
+          script: |
+            kubectl apply -f /tmp/toss-auto/k8s/base/namespace.yaml
+            kubectl apply -f /tmp/toss-auto/k8s/toss-auto-secrets.yaml
+            kubectl apply -k /tmp/toss-auto/k8s/overlays/prod
+            kubectl -n toss-auto set image deployment/toss-auto-api api=$DOCKER_USERNAME/toss-auto-api:$GITHUB_SHA
+            kubectl -n toss-auto set image deployment/toss-auto-web web=$DOCKER_USERNAME/toss-auto-web:$GITHUB_SHA
+            kubectl -n toss-auto rollout status deployment/toss-auto-api --timeout=180s
+            kubectl -n toss-auto rollout status deployment/toss-auto-web --timeout=180s

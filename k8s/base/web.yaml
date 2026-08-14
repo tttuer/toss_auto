@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: toss-auto-web
+spec:
+  selector: { app: toss-auto-web }
+  ports:
+    - port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toss-auto-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: toss-auto-web }
+  template:
+    metadata:
+      labels: { app: toss-auto-web }
+    spec:
+      containers:
+        - name: web
+          image: toss-auto-web:latest
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 3

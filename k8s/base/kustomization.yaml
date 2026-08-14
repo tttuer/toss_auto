@@ -1,0 +1,6 @@
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - api.yaml
+  - web.yaml
+  - runner.yaml

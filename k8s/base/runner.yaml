@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: toss-auto-runner
+spec:
+  schedule: "*/10 * * * *"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: runner
+              image: toss-auto-api:latest
+              command: ["python", "-m", "app.runner"]
+              envFrom:
+                - secretRef: { name: toss-auto-secrets }
