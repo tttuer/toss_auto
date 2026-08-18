@@ -20,6 +20,8 @@ values = {
     "DATABASE_URL": f"postgresql+psycopg://{quote(user)}:{quote(password)}@postgres:5432/toss_auto",
     "AUTO_RUN_ENABLED": os.environ.get("AUTO_RUN_ENABLED") or "true",
     "LIVE_TRADING": os.environ.get("LIVE_TRADING") or "true",
+    "TELEGRAM_BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+    "TELEGRAM_CHAT_ID": os.environ.get("TELEGRAM_CHAT_ID", ""),
 }
 
 Path(sys.argv[1]).write_text(json.dumps({

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.service import create_plan, execute_plan, next_open_day
+from app.telegram import TelegramNotifier
 from app.toss import RateLimitExceeded, TossClient
 
 
@@ -19,6 +20,7 @@ async def run() -> None:
         return
     init_db()
     toss = TossClient(config)
+    telegram = TelegramNotifier(config)
     now = datetime.now(ZoneInfo("Asia/Seoul"))
     try:
         with SessionLocal() as db:
@@ -33,9 +35,12 @@ async def run() -> None:
                 if regular and now.isoformat() >= regular["startTime"]:
                     month = local_today.strftime("%Y-%m")
                     await create_plan(db, toss, month)
-                    await execute_plan(db, toss, month, market, config.live_trading)
+                    intents = await execute_plan(db, toss, month, market, config.live_trading)
+                    await telegram.execution_summary(db, month, market, intents, config.live_trading)
     except RateLimitExceeded as error:
         logger.warning("토스 호출 한도 때문에 이번 점검을 건너뜁니다: %s", error)
+        with SessionLocal() as db:
+            await telegram.rate_limit_warning(db, f"rate-limit:{now.date().isoformat()}", str(error))
 
 
 if __name__ == "__main__":
