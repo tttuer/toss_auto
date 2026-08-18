@@ -31,6 +31,8 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           AUTO_RUN_ENABLED: ${{ secrets.AUTO_RUN_ENABLED }}
           LIVE_TRADING: ${{ secrets.LIVE_TRADING }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 scripts/create_kubernetes_secret.py k8s/toss-auto-secrets.yaml
       - uses: docker/login-action@v3
         with:

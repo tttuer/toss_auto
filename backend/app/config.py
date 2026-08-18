@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     auto_run_enabled: bool = True
     investment_day: int = 16
     api_base_url: str = "https://openapi.tossinvest.com"
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
 
 
 @lru_cache

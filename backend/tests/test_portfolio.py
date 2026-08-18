@@ -5,7 +5,9 @@ from decimal import Decimal
 import httpx
 
 from app.config import Settings
+from app.models import OrderIntent, OrderStatus
 from app.portfolio import ASSETS, allocations, kr_quantity
+from app.telegram import TelegramNotifier
 from app.toss import TossClient
 
 
@@ -42,6 +44,25 @@ def test_market_calendar_is_cached_for_the_same_day():
 def test_toss_error_message_contains_the_server_reason():
     response = httpx.Response(422, json={"error": {"code": "insufficient-buying-power", "message": "주문 가능 금액이 부족합니다."}})
     assert TossClient._error_message(response) == "insufficient-buying-power: 주문 가능 금액이 부족합니다."
+
+
+def test_telegram_summary_only_contains_important_statuses():
+    async def check():
+        notifier = TelegramNotifier(Settings())
+        sent: list[tuple[str, str]] = []
+
+        async def send_once(_db, event_key, text):
+            sent.append((event_key, text))
+
+        notifier.send_once = send_once  # type: ignore[method-assign]
+        intents = [
+            OrderIntent(symbol="VOO", market="US", month="2026-08", target_amount=Decimal("60"), status=OrderStatus.SUBMITTED),
+            OrderIntent(symbol="BRK.B", market="US", month="2026-08", target_amount=Decimal("5"), status=OrderStatus.FAILED, message="주문 가능 금액 부족"),
+        ]
+        await notifier.execution_summary(None, "2026-08", "US", intents, True)
+        assert sent == [("execution:2026-08:US", "[토스 자동투자] 2026-08 US\n주문 접수 결과\n접수: VOO\n실패: BRK.B (주문 가능 금액 부족)")]
+
+    asyncio.run(check())
 
 
 def test_prices_falls_back_to_individual_requests_after_batch_bad_request():
