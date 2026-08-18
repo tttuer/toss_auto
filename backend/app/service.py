@@ -38,7 +38,11 @@ async def execute_plan(db: Session, client: TossClient, month: str, market: str,
         try:
             client_order_id = f"{month.replace('-', '')}-{item.symbol}"[:36]
             if item.market == "KR":
-                item.quantity = kr_quantity(Decimal(item.target_amount), prices[item.symbol])
+                price = prices.get(item.symbol)
+                if price is None:
+                    item.status, item.message = OrderStatus.FAILED, "현재가 조회에 실패했습니다."
+                    continue
+                item.quantity = kr_quantity(Decimal(item.target_amount), price)
                 if not item.quantity:
                     item.status, item.message = OrderStatus.SKIPPED, "예산이 1주 가격보다 작습니다."
                     continue
