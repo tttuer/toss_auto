@@ -7,15 +7,18 @@ import httpx
 from app.config import Settings
 from app.models import OrderIntent, OrderStatus
 from app.portfolio import ASSETS, allocations, kr_quantity
+from app.service import budget_after_catch_up, can_catch_up, client_order_id, usd_budget_from_krw
 from app.telegram import TelegramNotifier
 from app.toss import TossClient
 
 
 def test_allocations_use_each_currency_balance():
-    values = allocations(ASSETS, {"KR": Decimal("1350000"), "US": Decimal("7650")})
+    values = allocations(ASSETS, {"KR": Decimal("1350000"), "US": Decimal("7650000")})
     assert values["005930"] == Decimal("360000.00")
-    assert values["VOO"] == Decimal("5400.00")
-    assert sum(values[item.symbol] for item in ASSETS if item.market == "US") == Decimal("7650.00")
+    assert values["VOO"] == Decimal("5100000.00")
+    assert values["QNT"] == Decimal("360000.00")
+    assert values["IONQ"] == Decimal("240000.00")
+    assert sum(values[item.symbol] for item in ASSETS if item.market == "US") == Decimal("7650000.00")
 
 
 def test_korean_stock_rounds_down_to_whole_share():
@@ -44,6 +47,23 @@ def test_market_calendar_is_cached_for_the_same_day():
 def test_toss_error_message_contains_the_server_reason():
     response = httpx.Response(422, json={"error": {"code": "insufficient-buying-power", "message": "주문 가능 금액이 부족합니다."}})
     assert TossClient._error_message(response) == "insufficient-buying-power: 주문 가능 금액이 부족합니다."
+
+
+def test_client_order_id_removes_the_dot_from_berkshire_symbol():
+    assert client_order_id("2026-08", "BRK.B") == "202608-BRK-B"
+
+
+def test_monthly_budget_reserves_failed_order_before_new_investment():
+    assert budget_after_catch_up(Decimal("600"), Decimal("500"), Decimal("100")) == Decimal("500")
+    assert budget_after_catch_up(Decimal("400"), Decimal("500"), Decimal("100")) == Decimal("300")
+    assert usd_budget_from_krw(Decimal("7650000"), Decimal("1500")) == Decimal("5100.00")
+
+
+def test_only_explicitly_rejected_orders_are_caught_up():
+    rejected = OrderIntent(symbol="BRK.B", market="US", month="2026-08", target_amount=Decimal("50"), status=OrderStatus.FAILED, message="주문 요청 실패 (400): 잘못된 주문 식별자")
+    unknown = OrderIntent(symbol="BRK.B", market="US", month="2026-08", target_amount=Decimal("50"), status=OrderStatus.FAILED, message="ReadTimeout")
+    assert can_catch_up(rejected)
+    assert not can_catch_up(unknown)
 
 
 def test_telegram_summary_only_contains_important_statuses():

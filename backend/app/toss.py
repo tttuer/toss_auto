@@ -79,6 +79,12 @@ class TossClient:
     async def buying_power(self, currency: str) -> Decimal:
         return Decimal((await self._get("/api/v1/buying-power", currency=currency))["cashBuyingPower"])
 
+    async def usd_krw_buy_rate(self) -> Decimal:
+        result = await self._get("/api/v1/exchange-rate", account=False)
+        if (result["baseCurrency"], result["quoteCurrency"]) != ("USD", "KRW"):
+            raise RuntimeError("USD/KRW 환율을 받지 못했습니다.")
+        return Decimal(result["rate"])
+
     async def prices(self, symbols: list[str]) -> dict[str, Decimal]:
         try:
             return await self._prices(symbols)
