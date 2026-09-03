@@ -1,7 +1,7 @@
 """k3s CronJob이 10분마다 실행하는 월간 주문 확인기."""
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.config import settings
@@ -12,6 +12,13 @@ from app.toss import RateLimitExceeded, TossClient
 
 
 logger = logging.getLogger(__name__)
+
+
+def is_order_window_open(market: str, now: datetime, regular: dict[str, str]) -> bool:
+    start = datetime.fromisoformat(regular["startTime"])
+    end = datetime.fromisoformat(regular["endTime"])
+    cutoff = end - timedelta(hours=1) if market == "US" else end
+    return start <= now < cutoff
 
 
 async def run() -> None:
@@ -32,11 +39,11 @@ async def run() -> None:
                 # 같은 날짜는 next_open_day에서 이미 조회해 캐시한 값을 다시 사용합니다.
                 calendar = await toss.market_calendar(market, local_today)
                 regular = calendar["today"].get("integrated", calendar["today"]).get("regularMarket")
-                if regular and now.isoformat() >= regular["startTime"]:
+                if regular and is_order_window_open(market, now, regular):
                     month = local_today.strftime("%Y-%m")
                     await create_plan(db, toss, month)
-                    intents = await catch_up_orders(db, toss, month, market, config.live_trading)
-                    intents += await execute_plan(db, toss, month, market, config.live_trading)
+                    intents = await execute_plan(db, toss, month, market, config.live_trading)
+                    intents += await catch_up_orders(db, toss, month, market, config.live_trading)
                     await telegram.execution_summary(db, month, market, intents, config.live_trading)
     except RateLimitExceeded as error:
         logger.warning("토스 호출 한도 때문에 이번 점검을 건너뜁니다: %s", error)

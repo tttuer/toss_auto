@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
@@ -7,7 +7,8 @@ import httpx
 from app.config import Settings
 from app.models import OrderIntent, OrderStatus
 from app.portfolio import ASSETS, allocations, kr_quantity
-from app.service import budget_after_catch_up, can_catch_up, client_order_id, usd_budget_from_krw
+from app.runner import is_order_window_open
+from app.service import budget_after_catch_up, can_catch_up, client_order_id, investment_order, usd_budget_from_krw
 from app.telegram import TelegramNotifier
 from app.toss import TossClient
 
@@ -15,7 +16,8 @@ from app.toss import TossClient
 def test_allocations_use_each_currency_balance():
     values = allocations(ASSETS, {"KR": Decimal("1350000"), "US": Decimal("7650000")})
     assert values["005930"] == Decimal("360000.00")
-    assert values["VOO"] == Decimal("5100000.00")
+    assert values["VOO"] == Decimal("3843000.00")
+    assert values["BRK.B"] == Decimal("1647000.00")
     assert values["QNT"] == Decimal("360000.00")
     assert values["IONQ"] == Decimal("240000.00")
     assert sum(values[item.symbol] for item in ASSETS if item.market == "US") == Decimal("7650000.00")
@@ -51,6 +53,21 @@ def test_toss_error_message_contains_the_server_reason():
 
 def test_client_order_id_removes_the_dot_from_berkshire_symbol():
     assert client_order_id("2026-08", "BRK.B") == "202608-BRK-B"
+
+
+def test_us_orders_put_berkshire_immediately_after_voo():
+    intents = [
+        OrderIntent(symbol="GOOGL", market="US", month="2026-08", target_amount=Decimal("1")),
+        OrderIntent(symbol="BRK.B", market="US", month="2026-08", target_amount=Decimal("1")),
+        OrderIntent(symbol="VOO", market="US", month="2026-08", target_amount=Decimal("1")),
+    ]
+    assert [item.symbol for item in investment_order(intents)] == ["VOO", "BRK.B", "GOOGL"]
+
+
+def test_us_amount_orders_stop_one_hour_before_regular_close():
+    regular = {"startTime": "2026-08-18T22:30:00+09:00", "endTime": "2026-08-19T05:00:00+09:00"}
+    assert is_order_window_open("US", datetime.fromisoformat("2026-08-18T22:30:00+09:00"), regular)
+    assert not is_order_window_open("US", datetime.fromisoformat("2026-08-19T04:00:00+09:00"), regular)
 
 
 def test_monthly_budget_reserves_failed_order_before_new_investment():
