@@ -13,9 +13,9 @@ ASSETS = (
     Asset("005930", "KR", Decimal("4")), Asset("000660", "KR", Decimal("3")),
     Asset("207940", "KR", Decimal("3")), Asset("005380", "KR", Decimal("3")),
     Asset("277810", "KR", Decimal("1")), Asset("105560", "KR", Decimal("1")),
-    Asset("VOO", "US", Decimal("850")), Asset("GOOGL", "US", Decimal("78")),
+    Asset("VOO", "US", Decimal("640.5")), Asset("GOOGL", "US", Decimal("78")),
     Asset("AMZN", "US", Decimal("65")), Asset("NVDA", "US", Decimal("52")),
-    Asset("V", "US", Decimal("65")), Asset("BRK.B", "US", Decimal("65")),
+    Asset("V", "US", Decimal("65")), Asset("BRK.B", "US", Decimal("274.5")),
     Asset("QNT", "US", Decimal("60")), Asset("IONQ", "US", Decimal("40")),
 )
 

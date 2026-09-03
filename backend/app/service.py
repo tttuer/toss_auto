@@ -13,6 +13,11 @@ def client_order_id(month: str, symbol: str) -> str:
     return f"{month.replace('-', '')}-{symbol.replace('.', '-')}"[:36]
 
 
+def investment_order(intents: list[OrderIntent]) -> list[OrderIntent]:
+    priority = {"VOO": 0, "BRK.B": 1}
+    return sorted(intents, key=lambda item: (priority.get(item.symbol, 2), item.id or 0))
+
+
 def budget_after_catch_up(available: Decimal, monthly_limit: Decimal, catch_up: Decimal) -> Decimal:
     return min(monthly_limit, max(Decimal(), available - catch_up))
 
@@ -57,6 +62,7 @@ async def create_plan(db: Session, client: TossClient, month: str) -> MonthlyRun
 async def execute_plan(db: Session, client: TossClient, month: str, market: str, live: bool, intents: list[OrderIntent] | None = None) -> list[OrderIntent]:
     if intents is None:
         intents = list(db.scalars(select(OrderIntent).where(OrderIntent.month == month, OrderIntent.market == market, OrderIntent.status == OrderStatus.PLANNED)))
+    intents = investment_order(intents)
     prices = await client.prices([item.symbol for item in intents]) if market == "KR" else {}
     for item in intents:
         try:
