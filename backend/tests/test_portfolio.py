@@ -51,6 +51,22 @@ def test_toss_error_message_contains_the_server_reason():
     assert TossClient._error_message(response) == "insufficient-buying-power: 주문 가능 금액이 부족합니다."
 
 
+def test_usd_krw_rate_uses_the_required_currency_parameters():
+    async def check():
+        client = TossClient(Settings())
+        calls: list[tuple[str, bool, dict[str, str]]] = []
+
+        async def get_rate(path, account=True, **params):
+            calls.append((path, account, params))
+            return {"baseCurrency": "USD", "quoteCurrency": "KRW", "rate": "1500"}
+
+        client._get = get_rate  # type: ignore[method-assign]
+        assert await client.usd_krw_buy_rate() == Decimal("1500")
+        assert calls == [("/api/v1/exchange-rate", False, {"baseCurrency": "USD", "quoteCurrency": "KRW"})]
+
+    asyncio.run(check())
+
+
 def test_client_order_id_removes_the_dot_from_berkshire_symbol():
     assert client_order_id("2026-08", "BRK.B") == "202608-BRK-B"
 
