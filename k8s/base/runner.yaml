@@ -6,10 +6,12 @@ spec:
   schedule: "*/10 * * * *"
   timeZone: Asia/Seoul
   concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1100
+  failedJobsHistoryLimit: 100
   jobTemplate:
     spec:
       backoffLimit: 1
-      ttlSecondsAfterFinished: 3600
+      ttlSecondsAfterFinished: 604800
       template:
         spec:
           restartPolicy: Never

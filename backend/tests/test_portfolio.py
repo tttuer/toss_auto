@@ -7,7 +7,7 @@ import httpx
 from app.config import Settings
 from app.models import OrderIntent, OrderStatus
 from app.portfolio import ASSETS, allocations, kr_quantity
-from app.runner import is_order_window_open
+from app.runner import is_due, is_order_window_open
 from app.service import budget_after_catch_up, can_catch_up, client_order_id, investment_order, usd_budget_from_krw
 from app.telegram import TelegramNotifier
 from app.toss import TossClient
@@ -68,6 +68,10 @@ def test_us_amount_orders_stop_one_hour_before_regular_close():
     regular = {"startTime": "2026-08-18T22:30:00+09:00", "endTime": "2026-08-19T05:00:00+09:00"}
     assert is_order_window_open("US", datetime.fromisoformat("2026-08-18T22:30:00+09:00"), regular)
     assert not is_order_window_open("US", datetime.fromisoformat("2026-08-19T04:00:00+09:00"), regular)
+
+
+def test_missed_investment_day_remains_due_on_later_open_day():
+    assert is_due(date(2026, 9, 17), date(2026, 9, 16))
 
 
 def test_monthly_budget_reserves_failed_order_before_new_investment():
