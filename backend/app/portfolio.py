@@ -32,3 +32,26 @@ def allocations(assets: tuple[Asset, ...], budgets: dict[str, Decimal]) -> dict[
 
 def kr_quantity(amount: Decimal, price: Decimal) -> Decimal:
     return (amount / price).to_integral_value(rounding=ROUND_DOWN) if price > 0 else Decimal()
+
+
+def balanced_kr_allocations(
+    assets: tuple[Asset, ...], prices: dict[str, Decimal], automatic_values: dict[str, Decimal], budget: Decimal
+) -> dict[str, Decimal]:
+    """Buy whole shares that move automatic-investment values nearest to their target weights."""
+    group = [asset for asset in assets if asset.market == "KR" and prices.get(asset.symbol, Decimal()) > 0]
+    planned = {asset.symbol: Decimal() for asset in group}
+    total_weight = sum((asset.weight for asset in group), Decimal())
+    remaining = budget
+    while choices := [asset for asset in group if prices[asset.symbol] <= remaining]:
+        def score(asset: Asset) -> tuple[Decimal, Decimal, str]:
+            total = sum((automatic_values.get(item.symbol, Decimal()) + planned[item.symbol] for item in group), prices[asset.symbol])
+            error = sum(
+                ((automatic_values.get(item.symbol, Decimal()) + planned[item.symbol] + (prices[asset.symbol] if item == asset else Decimal()) - total * item.weight / total_weight) / total) ** 2
+                for item in group
+            )
+            return error, -prices[asset.symbol], asset.symbol
+
+        selected = min(choices, key=score)
+        planned[selected.symbol] += prices[selected.symbol]
+        remaining -= prices[selected.symbol]
+    return planned
