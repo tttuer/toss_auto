@@ -52,6 +52,15 @@ class OrderIntent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 
+class Carryover(Base):
+    __tablename__ = "carryovers"
+
+    market: Mapped[str] = mapped_column(String(2), primary_key=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal())
+    reserved_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    tracked_remaining: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal())
+
+
 class Notification(Base):
     __tablename__ = "notifications"
 

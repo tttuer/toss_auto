@@ -3,12 +3,14 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.config import Settings
-from app.models import OrderIntent, OrderStatus
-from app.portfolio import ASSETS, allocations, kr_quantity
+from app.models import Base, MonthlyRun, OrderIntent, OrderStatus
+from app.portfolio import ASSETS, allocations, balanced_kr_allocations, kr_quantity
 from app.runner import is_due, is_order_window_open
-from app.service import budget_after_catch_up, can_catch_up, client_order_id, investment_order, usd_budget_from_krw
+from app.service import automatic_kr_values, budget_after_catch_up, can_catch_up, client_order_id, investment_order, kr_carryover, usd_budget_from_krw
 from app.telegram import TelegramNotifier
 from app.toss import TossClient
 
@@ -25,6 +27,28 @@ def test_allocations_use_each_currency_balance():
 
 def test_korean_stock_rounds_down_to_whole_share():
     assert kr_quantity(Decimal("360000"), Decimal("73000")) == 4
+
+
+def test_korean_allocation_uses_multiple_affordable_stocks_to_rebalance_automatic_investments():
+    prices = {
+        "005930": Decimal("70000"), "000660": Decimal("280000"), "207940": Decimal("1000000"),
+        "005380": Decimal("210000"), "277810": Decimal("400000"), "105560": Decimal("80000"),
+    }
+    values = balanced_kr_allocations(ASSETS, prices, {"005930": Decimal("5000000")}, Decimal("1350000"))
+    assert sum(values.values()) == Decimal("1350000")
+    assert values["000660"] and values["207940"]
+    assert values["005930"] < Decimal("1350000")
+
+
+def test_first_carryover_includes_previously_unspent_automatic_budget_only():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine)() as db:
+        db.add(MonthlyRun(month="2026-08", krw_budget=Decimal("1350000"), usd_budget=Decimal()))
+        db.add(OrderIntent(month="2026-08", symbol="005930", market="KR", target_amount=Decimal("360000"), status=OrderStatus.SUBMITTED))
+        db.commit()
+        assert kr_carryover(db, "2026-09").amount == Decimal("990000")
+        assert automatic_kr_values(db, "2026-09") == {"005930": Decimal("360000")}
 
 
 def test_market_calendar_is_cached_for_the_same_day():
